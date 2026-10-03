@@ -1,0 +1,188 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>costscout demo</title><style>
+body{font-family:-apple-system,system-ui,sans-serif;margin:0;background:#f6f7f9;color:#1d2330;line-height:1.5}
+header{background:#0f3d5e;color:#fff;padding:28px 20px} header h1{margin:0;font-size:1.6rem} header p{margin:6px 0 0;opacity:.85}
+main{max-width:980px;margin:0 auto;padding:20px}
+section{background:#fff;border-radius:12px;padding:20px 22px;margin:18px 0;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+h2{font-size:1.2rem;margin-top:0} h3{font-size:1rem}
+pre{background:#0d1117;color:#d6e2ef;padding:16px;border-radius:10px;overflow:auto;font-size:.85rem;line-height:1.45}
+table{border-collapse:collapse;width:100%;font-size:.9rem;display:block;overflow-x:auto}
+th,td{border-bottom:1px solid #e5e8ee;padding:7px 9px;text-align:left;white-space:nowrap} th{background:#f0f4f8}
+code{background:#eef2f6;padding:1px 5px;border-radius:4px;font-size:.88em}
+@media (max-width:600px){header h1{font-size:1.3rem}}
+</style></head><body>
+<header><h1>costscout: Kubernetes cost-driver report</h1><p>Read-only scan, markdown report, sample snapshot. Prototype for review.</p></header>
+<main>
+<section><h2>Terminal run</h2><pre>$ costscout report --snapshot testdata/sample-snapshot --out demo/report.md --cpu-hour 0.03 --gib-hour 0.004
+wrote demo/report.md
+
+$ costscout collect --out /tmp/snap --context local
+error: kubectl get nodes: exec: &quot;kubectl&quot;: executable file not found in $PATH: 
+exit code: 1
+
+$ go test ./...
+?   	costscout/cmd/costscout	[no test files]
+ok  	costscout/internal/scout	(cached)
+</pre></section>
+<section><h1>Kubernetes cost-driver report</h1>
+<p>Snapshot: <code>sample-snapshot</code></p>
+<ul>
+<li>Nodes: 2 (allocatable 8.0 vCPU, 32.0 GiB)</li>
+<li>Namespaces: 4, running or pending pods: 10</li>
+<li>Requested by pods: 4.70 vCPU, 9.2 GiB</li>
+<li>Requests vs allocatable: 59% CPU, 29% memory</li>
+<li>Estimated request cost: <strong>$130 / month</strong></li>
+</ul>
+<p>Cost model: $0.030 per vCPU-hour and $0.0040 per GiB-hour of requested resources, times 730 hours. These rates are placeholders; set them with <code>--cpu-hour</code> and <code>--gib-hour</code> to match the cluster's real prices.</p>
+<h2>Top cost drivers (workloads)</h2>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Namespace</th>
+<th>Workload</th>
+<th>Kind</th>
+<th>Pods</th>
+<th>CPU req</th>
+<th>Mem req</th>
+<th>Est. $/mo</th>
+<th>Share</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>shop</td>
+<td>api</td>
+<td>Deployment</td>
+<td>5</td>
+<td>2500m</td>
+<td>5120 MiB</td>
+<td>$69.35</td>
+<td>53.4%</td>
+</tr>
+<tr>
+<td>2</td>
+<td>data</td>
+<td>postgres</td>
+<td>StatefulSet</td>
+<td>1</td>
+<td>2000m</td>
+<td>4096 MiB</td>
+<td>$55.48</td>
+<td>42.7%</td>
+</tr>
+<tr>
+<td>3</td>
+<td>shop</td>
+<td>web</td>
+<td>Deployment</td>
+<td>2</td>
+<td>200m</td>
+<td>256 MiB</td>
+<td>$5.11</td>
+<td>3.9%</td>
+</tr>
+<tr>
+<td>4</td>
+<td>monitoring</td>
+<td>node-exporter</td>
+<td>DaemonSet</td>
+<td>2</td>
+<td>0m</td>
+<td>0 MiB</td>
+<td>$0.00</td>
+<td>0.0%</td>
+</tr>
+</tbody>
+</table>
+<h2>Cost by namespace</h2>
+<table>
+<thead>
+<tr>
+<th>Namespace</th>
+<th>Pods</th>
+<th>Est. $/mo</th>
+<th>Share</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>shop</td>
+<td>7</td>
+<td>$74.46</td>
+<td>57.3%</td>
+</tr>
+<tr>
+<td>data</td>
+<td>1</td>
+<td>$55.48</td>
+<td>42.7%</td>
+</tr>
+<tr>
+<td>monitoring</td>
+<td>2</td>
+<td>$0.00</td>
+<td>0.0%</td>
+</tr>
+</tbody>
+</table>
+<h2>Misconfigurations</h2>
+<table>
+<thead>
+<tr>
+<th>Check</th>
+<th>Count</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>limit-far-above-request</td>
+<td>1</td>
+</tr>
+<tr>
+<td>many-replicas</td>
+<td>1</td>
+</tr>
+<tr>
+<td>missing-memory-limit</td>
+<td>2</td>
+</tr>
+<tr>
+<td>missing-requests</td>
+<td>1</td>
+</tr>
+<tr>
+<td>unpinned-image</td>
+<td>2</td>
+</tr>
+</tbody>
+</table>
+<h3>limit-far-above-request (1)</h3>
+<p><em>Fix:</em> Lower the limit or raise the request; large gaps make node packing unpredictable</p>
+<ul>
+<li><code>shop/web/web</code>: Memory limit is 8.0x the request</li>
+</ul>
+<h3>many-replicas (1)</h3>
+<p><em>Fix:</em> Check whether an autoscaler (HPA) should own the replica count, or whether fewer replicas suffice</p>
+<ul>
+<li><code>shop/Deployment/api</code>: 5 replicas</li>
+</ul>
+<h3>missing-memory-limit (2)</h3>
+<p><em>Fix:</em> Set a memory limit so one container can't starve its node</p>
+<ul>
+<li><code>monitoring/node-exporter/exporter</code>: No memory limit</li>
+<li><code>shop/api/api</code>: No memory limit</li>
+</ul>
+<h3>missing-requests (1)</h3>
+<p><em>Fix:</em> Set requests from observed usage so the scheduler and the cost allocation can see this workload</p>
+<ul>
+<li><code>monitoring/node-exporter/exporter</code>: CPU or memory request not set</li>
+</ul>
+<h3>unpinned-image (2)</h3>
+<p><em>Fix:</em> Pin a version tag or digest so rollouts are reproducible</p>
+<ul>
+<li><code>monitoring/node-exporter/exporter</code>: Image is untagged or uses :latest (prom/node-exporter)</li>
+<li><code>shop/api/api</code>: Image is untagged or uses :latest (acme/api:latest)</li>
+</ul></section>
+</main></body></html>
